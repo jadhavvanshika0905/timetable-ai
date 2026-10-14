@@ -1,0 +1,8 @@
+{
+  "status": "OPTIMAL",
+  "timetable": [
+    {"course_id": "C1", "faculty_id": "F1", "room_id": "R1", "day": "Mon", "period": 1},
+    {"course_id": "C2", "faculty_id": "F2", "room_id": "L1", "day": "Tue", "period": 3}
+  ],
+  "infeasibility_reasons": []
+}

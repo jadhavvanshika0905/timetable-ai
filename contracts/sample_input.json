@@ -1,0 +1,10 @@
+{
+  "slots": {"days": ["Mon","Tue","Wed","Thu","Fri"], "periods": [1,2,3,4,5,6]},
+  "faculty": [{"id": "F1", "name": "Prof. Sharma"}, {"id": "F2", "name": "Prof. Mehta"}],
+  "rooms": [{"id": "R1", "capacity": 60, "type": "classroom"}, {"id": "L1", "capacity": 30, "type": "lab"}],
+  "courses": [
+    {"id": "C1", "name": "DBMS", "faculty_id": "F1", "hours_per_week": 3, "type": "major", "expected_students": 55},
+    {"id": "C2", "name": "AI Basics", "faculty_id": "F2", "hours_per_week": 2, "type": "minor", "expected_students": 28}
+  ],
+  "student_choices": [{"student_id": "S1", "course_ids": ["C1", "C2"]}]
+}

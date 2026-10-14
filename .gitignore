@@ -1,0 +1,19 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# env + secrets
+.env
+# django
+db.sqlite3
+staticfiles/
+# ml models (heavy)
+backend/apps/ml/saved_models/*.joblib
+# node
+node_modules/
+dist/
+# os / ide
+.DS_Store
+.vscode/
+.idea/
