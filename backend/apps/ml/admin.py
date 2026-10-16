@@ -1,3 +1,5 @@
 from django.contrib import admin
+from .models import TrainedModel, DemandPrediction, WorkloadRisk
 
-# Register your models here.
+for m in (TrainedModel, DemandPrediction, WorkloadRisk):
+    admin.site.register(m)
