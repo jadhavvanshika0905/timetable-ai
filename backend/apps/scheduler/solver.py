@@ -214,7 +214,12 @@ def _precheck(data, candidate_rooms):
     return []
 
 
-def generate_timetable(data: dict) -> dict:
+def generate_timetable(
+    data: dict,
+    *,
+    max_time_seconds: float = 10.0,
+    num_search_workers: int = 1
+) -> dict:
     """Generate a timetable preserving the v1/v2 flat output contract.
 
     Courses without lab_block_size use independent one-period sessions. For
@@ -308,8 +313,8 @@ def generate_timetable(data: dict) -> dict:
         model.Minimize(sum(objective_terms))
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 10.0
-    solver.parameters.num_search_workers = 1
+    solver.parameters.max_time_in_seconds = max_time_seconds
+    solver.parameters.num_search_workers = num_search_workers
     solver.parameters.random_seed = 7
     status = solver.Solve(model)
 
