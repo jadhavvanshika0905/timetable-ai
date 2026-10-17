@@ -228,7 +228,13 @@ def build_solver_input_from_db(term_id, *, course_ids=None, lab_block_sizes=None
     )
 
 
-def generate_timetable_for_term(term_id, *, course_ids=None, lab_block_sizes=None):
+def generate_timetable_for_term(
+    term_id, *,
+    course_ids=None,
+    lab_block_sizes=None,
+    max_time_seconds=10.0,
+    num_search_workers=1
+):
     """Return existing solver result JSON without writing to the database."""
     try:
         data = build_solver_input_from_db(term_id, course_ids=course_ids,
@@ -237,4 +243,8 @@ def generate_timetable_for_term(term_id, *, course_ids=None, lab_block_sizes=Non
         return {"status": "INVALID_INPUT", "timetable": [],
                 "infeasibility_reasons": [str(exc)]}
     from .solver import generate_timetable
-    return generate_timetable(data)
+    return generate_timetable(
+        data,
+        max_time_seconds=max_time_seconds,
+        num_search_workers=num_search_workers
+    )

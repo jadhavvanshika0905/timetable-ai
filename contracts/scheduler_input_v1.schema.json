@@ -78,6 +78,10 @@
           "name": {
             "type": "string"
           },
+          "max_hours_per_week": {
+            "type": "integer",
+            "minimum": 1
+          },
           "preferences": {
             "type": "array",
             "description": "One entry per faculty/slot. NO=unavailable, AVOID/PREFER=soft.",

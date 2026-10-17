@@ -188,3 +188,32 @@ class SchedulerDatabaseIntegrationTests(TestCase):
             result["status"], "INVALID_INPUT"
         )
         self.assertEqual(result["timetable"], [])
+
+
+    def test_custom_solver_settings_forwarded(self):
+        from unittest.mock import ANY, patch
+
+        with patch(
+            "apps.scheduler.solver.generate_timetable"
+        ) as mock_solver:
+
+            mock_solver.return_value = {
+                "status": "OPTIMAL",
+                "timetable": [],
+                "infeasibility_reasons": [],
+            }
+
+            result = generate_timetable_for_term(
+                self.term.id,
+                lab_block_sizes={self.lab.id: 2},
+                max_time_seconds=30.0,
+                num_search_workers=4,
+            )
+
+            mock_solver.assert_called_once_with(
+                ANY,
+                max_time_seconds=30.0,
+                num_search_workers=4,
+            )
+
+        self.assertEqual(result["status"], "OPTIMAL")
