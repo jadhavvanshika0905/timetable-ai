@@ -11,6 +11,11 @@ def validate_timetable(data: dict, timetable: list) -> list[str]:
     issues = []
     courses = {course["id"]: course for course in data["courses"]}
     faculty = {person["id"] for person in data["faculty"]}
+    faculty_limits = {
+        person["id"]: person.get("max_hours_per_week")
+        for person in data["faculty"]
+    }
+    faculty_load = Counter()
     rooms = {room["id"]: room for room in data["rooms"]}
     days = set(data["slots"]["days"])
     periods = set(data["slots"]["periods"])
@@ -46,6 +51,7 @@ def validate_timetable(data: dict, timetable: list) -> list[str]:
         room = rooms[rid]
         slot = (day, period)
         counts[cid] += 1
+        faculty_load[fid] += 1
         slots_by_course[cid].add(slot)
         entries_by_course[cid].append((day, period, rid, fid))
         if slot in breaks:
@@ -71,6 +77,15 @@ def validate_timetable(data: dict, timetable: list) -> list[str]:
             if key in used_section:
                 issues.append(f"Entry {row}: section {course['section_id']} has overlapping classes.")
             used_section.add(key)
+
+    for fid, count in faculty_load.items():
+        limit = faculty_limits.get(fid)
+
+        if limit is not None and count > limit:
+            issues.append(
+                f"Faculty {fid}: {count} periods exceed "
+                f"max_hours_per_week={limit}."
+            )
 
     for cid, course in courses.items():
         if counts[cid] != course["hours_per_week"]:
