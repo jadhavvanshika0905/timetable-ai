@@ -1,13 +1,12 @@
-"""Independent validation of generated or manually edited timetables (v1)."""
+"""Independent validation of generated or manually edited timetables (v3)."""
 from collections import Counter, defaultdict
 from itertools import combinations
 
 
 def validate_timetable(data: dict, timetable: list) -> list[str]:
-    """Return human-readable issues. An empty list means v1 checks passed.
+    """Return human-readable issues including consecutive practical blocks.
 
-    v2 validates breaks and faculty unavailability. Multi-period practical
-    blocks and preference optimization are not independently checked.
+    Faculty preferences AVOID/PREFER are soft optimization goals, not errors.
     """
     issues = []
     courses = {course["id"]: course for course in data["courses"]}
@@ -21,6 +20,7 @@ def validate_timetable(data: dict, timetable: list) -> list[str]:
     used_course = set()
     used_section = set()
     slots_by_course = defaultdict(set)
+    entries_by_course = defaultdict(list)
     breaks = {(s["day"], s["period"]) for s in data["slots"].get("breaks", [])}
     unavailable = {
         faculty_member["id"]: {
@@ -47,6 +47,7 @@ def validate_timetable(data: dict, timetable: list) -> list[str]:
         slot = (day, period)
         counts[cid] += 1
         slots_by_course[cid].add(slot)
+        entries_by_course[cid].append((day, period, rid, fid))
         if slot in breaks:
             issues.append(f"Entry {row}: class scheduled during a break at {day} period {period}.")
         if slot in unavailable.get(fid, set()):
@@ -74,6 +75,35 @@ def validate_timetable(data: dict, timetable: list) -> list[str]:
     for cid, course in courses.items():
         if counts[cid] != course["hours_per_week"]:
             issues.append(f"Course {cid}: expected {course['hours_per_week']} sessions, got {counts[cid]}.")
+
+    # Each lab block must form a continuous run in one room with the same
+    # faculty. Separate adjacent blocks in the same room form a longer run,
+    # so its length must be divisible by the requested lab_block_size.
+    for cid, course in courses.items():
+        block_size = course.get("lab_block_size", 1)
+        if block_size == 1:
+            continue
+        by_day = defaultdict(list)
+        for day, period, room_id, faculty_id in entries_by_course[cid]:
+            by_day[day].append((period, room_id, faculty_id))
+        for day, entries in by_day.items():
+            entries.sort()
+            previous = None
+            run_length = 0
+            for row in entries:
+                continuous = (previous is not None
+                              and row[0] == previous[0] + 1
+                              and row[1:] == previous[1:])
+                if not continuous:
+                    if run_length and run_length % block_size != 0:
+                        issues.append(f"Course {cid}: lab block split on {day}; "
+                                      f"requires {block_size} consecutive periods in one room.")
+                    run_length = 0
+                run_length += 1
+                previous = row
+            if run_length and run_length % block_size != 0:
+                issues.append(f"Course {cid}: lab block split on {day}; "
+                              f"requires {block_size} consecutive periods in one room.")
 
     # All sessions of a course share its scheduled slots; if a student
     # enrolled in two courses, their slot sets must not overlap.

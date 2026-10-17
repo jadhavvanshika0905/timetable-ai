@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:timetable-ai:scheduler-input:v1",
   "title": "Timetable AI — Member 1 Scheduler Input v1",
-  "description": "Backward-compatible v1.1 optional breaks and faculty preferences; one-period sessions.",
+  "description": "Backward-compatible contract v1.2: faculty preferences, breaks, optional consecutive lab blocks.",
   "type": "object",
   "required": [
     "slots",
@@ -192,6 +192,12 @@
           "section_id": {
             "type": "string",
             "minLength": 1
+          },
+          "lab_block_size": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "If requires_lab=true, group lab hours into indivisible consecutive blocks of this many periods. hours_per_week must be divisible by it."
           }
         }
       }

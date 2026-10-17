@@ -1,4 +1,4 @@
-"""Member 1 -- conflict-free one-period timetable generator (contract v1).
+"""Member 1 -- conflict-free timetable generator with consecutive practical blocks (v3).
 
 Use from repository root (Windows PowerShell):
     .\\.venv\\Scripts\\python.exe backend\\apps\\scheduler\\solver.py
@@ -110,6 +110,13 @@ def _validate_input(data):
             return [f"Course {cid}: expected_students must be a nonnegative integer."]
         if type(course.get("requires_lab", False)) is not bool:
             return [f"Course {cid}: requires_lab must be true/false."]
+        block_size = course.get("lab_block_size", 1)
+        if type(block_size) is not int or block_size < 1:
+            return [f"Course {cid}: lab_block_size must be a positive integer."]
+        if block_size > 1 and not course.get("requires_lab", False):
+            return [f"Course {cid}: lab_block_size > 1 requires requires_lab=true."]
+        if course["hours_per_week"] % block_size != 0:
+            return [f"Course {cid}: hours_per_week must be divisible by lab_block_size."]
         if "section_id" in course and (not isinstance(course["section_id"], str) or not course["section_id"].strip()):
             return [f"Course {cid}: section_id must be a nonempty string when supplied."]
     for choice in data.get("student_choices", []):
@@ -133,6 +140,22 @@ def _precheck(data, candidate_rooms):
     for course in courses:
         if not candidate_rooms[course["id"]]:
             return [f"Course {course['id']}: no room meets capacity/lab requirement."]
+        block_size = course.get("lab_block_size", 1)
+        if block_size > 1:
+            fid = course["faculty_id"]
+            possible_starts = [
+                (day, index)
+                for day in days for index in range(len(periods) - block_size + 1)
+                if all(
+                    periods[index + offset] == periods[index] + offset
+                    and (day, periods[index + offset]) in all_slots
+                    and preferences[fid].get((day, periods[index + offset])) != "NO"
+                    for offset in range(block_size)
+                )
+            ]
+            if not possible_starts:
+                return [f"Course {course['id']}: no {block_size}-period consecutive lab block "
+                        "available without a break or faculty unavailability."]
         if course["hours_per_week"] > n_slots:
             return [f"Course {course['id']}: needs more distinct periods than exist outside breaks."]
         faculty_allowed = sum(preferences[course["faculty_id"]].get(slot) != "NO"
@@ -167,10 +190,11 @@ def _precheck(data, candidate_rooms):
 
 
 def generate_timetable(data: dict) -> dict:
-    """Generate a feasible timetable or return INVALID_INPUT/INFEASIBLE/UNKNOWN.
+    """Generate a timetable preserving the v1/v2 flat output contract.
 
-    One required weekly hour = one one-period session in v1. Assignments
-    use a weighted soft objective for lecture spreading and faculty preferences.
+    Courses without lab_block_size use independent one-period sessions. For
+    lab_block_size=k>1, hours_per_week/k indivisible k-period blocks are
+    scheduled, while output still contains one row for each occupied period.
     """
     issues = _validate_input(data)
     if issues:
@@ -192,19 +216,31 @@ def generate_timetable(data: dict) -> dict:
     if issues:
         return _response("INFEASIBLE", reasons=issues)
 
-    # One entry in sessions for each weekly period needed by an offering.
-    sessions = [cidx for cidx, course in enumerate(courses)
-                for _ in range(course["hours_per_week"])]
+    # One CP-SAT decision represents ONE indivisible session/block. The
+    # output is expanded into one timetable row for every occupied period.
+    sessions, durations = [], []
+    for course_index, course in enumerate(courses):
+        duration = course.get("lab_block_size", 1)
+        for _ in range(course["hours_per_week"] // duration):
+            sessions.append(course_index)
+            durations.append(duration)
 
     breaks, preferences = _slot_policy(data)
     model = cp_model.CpModel()
-    variables = {}  # (session_index, day_index, period_index, room_index)
+    variables = {}  # (session_index, day_index, START_period_index, room_index)
     for s, cidx in enumerate(sessions):
         cid = courses[cidx]["id"]
+        duration = durations[s]
+        faculty_id = courses[cidx]["faculty_id"]
         for d in range(len(days)):
-            for p in range(len(periods)):
-                slot = (days[d], periods[p])
-                if slot in breaks or preferences[courses[cidx]["faculty_id"]].get(slot) == "NO":
+            for p in range(len(periods) - duration + 1):
+                # Period numbers must be numerically consecutive. A break or
+                # unavailable faculty time anywhere in the block rules out it.
+                window = [(days[d], periods[p + offset]) for offset in range(duration)]
+                if any(periods[p + offset] != periods[p] + offset for offset in range(duration)):
+                    continue
+                if any(slot in breaks or preferences[faculty_id].get(slot) == "NO"
+                       for slot in window):
                     continue
                 for r in candidate_rooms[cid]:
                     variables[(s, d, p, r)] = model.NewBoolVar(f"s{s}_d{d}_p{p}_r{r}")
@@ -213,11 +249,12 @@ def generate_timetable(data: dict) -> dict:
     for choice in data.get("student_choices", []):
         student_courses[choice["student_id"]].update(choice["course_ids"])
     add_hard_constraints(model, variables, sessions, courses,
-                         data["faculty"], rooms, days, periods, student_courses.values())
+                         data["faculty"], rooms, days, periods,
+                         student_courses.values(), durations=durations)
 
     # Soft constraints: discourage putting a theory course repeatedly on the
     # same day (weight 20); faculty AVOID (weight 6), PREFER (reward 3).
-    # Practical/lab consecutive sessions need a separate future block model.
+    # Blocks remain indivisible even when soft optimization is enabled.
     objective_terms = []
     by_course_day = defaultdict(list)
     for (session_idx, day_idx, period_idx, room_idx), variable in variables.items():
@@ -236,11 +273,12 @@ def generate_timetable(data: dict) -> dict:
                 objective_terms.append(20 * excess)
     for (s, d, p, r), var in variables.items():
         fid = courses[sessions[s]]["faculty_id"]
-        level = preferences[fid].get((days[d], periods[p]))
-        if level == "AVOID":
-            objective_terms.append(6 * var)
-        elif level == "PREFER":
-            objective_terms.append(-3 * var)
+        for offset in range(durations[s]):
+            level = preferences[fid].get((days[d], periods[p + offset]))
+            if level == "AVOID":
+                objective_terms.append(6 * var)
+            elif level == "PREFER":
+                objective_terms.append(-3 * var)
     if objective_terms:
         model.Minimize(sum(objective_terms))
 
@@ -255,10 +293,11 @@ def generate_timetable(data: dict) -> dict:
         for (s, d, p, r), decision in variables.items():
             if solver.Value(decision):
                 c = courses[sessions[s]]
-                timetable.append({"course_id": c["id"],
-                                  "faculty_id": c["faculty_id"],
-                                  "room_id": rooms[r]["id"],
-                                  "day": days[d], "period": periods[p]})
+                for offset in range(durations[s]):
+                    timetable.append({"course_id": c["id"],
+                                      "faculty_id": c["faculty_id"],
+                                      "room_id": rooms[r]["id"],
+                                      "day": days[d], "period": periods[p + offset]})
         day_idx = {d: i for i, d in enumerate(days)}
         period_idx = {p: i for i, p in enumerate(periods)}
         timetable.sort(key=lambda e: (day_idx[e["day"]], period_idx[e["period"]], e["course_id"]))

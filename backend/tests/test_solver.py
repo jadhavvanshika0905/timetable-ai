@@ -20,6 +20,32 @@ class TestSchedulerV1(unittest.TestCase):
         cls.demo = json.loads((ROOT / "contracts" / "scheduler_demo_input_v1.json").read_text(encoding="utf-8"))
         cls.legacy = json.loads((ROOT / "contracts" / "sample_input.json").read_text(encoding="utf-8"))
         cls.v2 = json.loads((ROOT / "contracts" / "scheduler_demo_input_v2.json").read_text(encoding="utf-8"))
+        cls.v3 = json.loads((ROOT / "contracts" / "scheduler_demo_input_v3.json").read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _clean_reduced_fixture(data):
+        """Remove stale links when a test deliberately shrinks days/courses.
+
+        Production validation remains strict: invalid slots or course IDs are
+        still rejected rather than silently ignored by generate_timetable().
+        """
+        valid_slots = {
+            (day, period)
+            for day in data["slots"]["days"]
+            for period in data["slots"]["periods"]
+        }
+        for faculty in data["faculty"]:
+            faculty["preferences"] = [
+                preference for preference in faculty.get("preferences", [])
+                if (preference["day"], preference["period"]) in valid_slots
+            ]
+        active_course_ids = {course["id"] for course in data["courses"]}
+        for choice in data.get("student_choices", []):
+            choice["course_ids"] = [
+                course_id for course_id in choice["course_ids"]
+                if course_id in active_course_ids
+            ]
+        return data
 
     def test_demo_generates_five_sessions(self):
         result = generate_timetable(self.demo)
@@ -148,6 +174,93 @@ class TestSchedulerV1(unittest.TestCase):
         result = generate_timetable(data)
         self.assertIn(result["status"], ("OPTIMAL", "FEASIBLE"))
         self.assertEqual(result["timetable"][0]["period"], 2)
+
+
+    def test_v3_lab_is_consecutive_same_day_same_room(self):
+        result = generate_timetable(self.v3)
+        self.assertIn(result["status"], ("OPTIMAL", "FEASIBLE"))
+        self.assertEqual(len(result["timetable"]), 5)
+        self.assertEqual(validate_timetable(self.v3, result["timetable"]), [])
+        lab = [e for e in result["timetable"] if e["course_id"] == "DEMO_CSE_A_C2"]
+        self.assertEqual(len(lab), 2)
+        self.assertEqual(lab[0]["day"], lab[1]["day"])
+        self.assertEqual(lab[0]["room_id"], lab[1]["room_id"])
+        self.assertEqual(lab[0]["faculty_id"], lab[1]["faculty_id"])
+        self.assertEqual(abs(lab[0]["period"] - lab[1]["period"]), 1)
+
+    def test_v3_lab_cannot_cross_break(self):
+        data = copy.deepcopy(self.v3)
+        data["slots"] = {"days": ["Mon"], "periods": [1, 2, 3],
+                         "breaks": [{"day": "Mon", "period": 2}]}
+        data["courses"] = [data["courses"][1]]
+        self._clean_reduced_fixture(data)
+        result = generate_timetable(data)
+        self.assertEqual(result["status"], "INFEASIBLE")
+        self.assertTrue(any("consecutive lab block" in reason for reason in result["infeasibility_reasons"]))
+
+    def test_v3_nonconsecutive_period_numbers_cannot_form_lab(self):
+        data = copy.deepcopy(self.v3)
+        data["slots"] = {"days": ["Mon"], "periods": [1, 3]}
+        data["courses"] = [data["courses"][1]]
+        self._clean_reduced_fixture(data)
+        self.assertEqual(generate_timetable(data)["status"], "INFEASIBLE")
+
+    def test_v3_cannot_use_unavailable_middle_period(self):
+        data = copy.deepcopy(self.v3)
+        data["slots"] = {"days": ["Mon"], "periods": [1, 2]}
+        data["courses"] = [data["courses"][1]]
+        data["faculty"][1]["preferences"] = [{"day": "Mon", "period": 2, "level": "NO"}]
+        self._clean_reduced_fixture(data)
+        self.assertEqual(generate_timetable(data)["status"], "INFEASIBLE")
+
+    def test_v3_manual_split_lab_is_detected(self):
+        result = generate_timetable(self.v3)
+        self.assertIn(result["status"], ("OPTIMAL", "FEASIBLE"))
+        modified = copy.deepcopy(result["timetable"])
+        lab = [e for e in modified if e["course_id"] == "DEMO_CSE_A_C2"]
+        lab[1]["day"] = "Wed" if lab[0]["day"] != "Wed" else "Thu"
+        errors = validate_timetable(self.v3, modified)
+        self.assertTrue(any("lab block split" in error for error in errors), errors)
+
+    def test_v3_manual_lab_room_change_is_detected(self):
+        data = copy.deepcopy(self.v3)
+        data["rooms"].append({"id": "DEMO_L2", "capacity": 35, "type": "lab"})
+        result = generate_timetable(data)
+        self.assertIn(result["status"], ("OPTIMAL", "FEASIBLE"))
+        modified = copy.deepcopy(result["timetable"])
+        lab = [e for e in modified if e["course_id"] == "DEMO_CSE_A_C2"]
+        lab[1]["room_id"] = "DEMO_L2" if lab[1]["room_id"] == "DEMO_L1" else "DEMO_L1"
+        errors = validate_timetable(data, modified)
+        self.assertTrue(any("lab block split" in error for error in errors), errors)
+
+    def test_v3_invalid_block_not_dividing_weekly_hours(self):
+        data = copy.deepcopy(self.v3)
+        data["courses"][1]["hours_per_week"] = 3
+        self.assertEqual(generate_timetable(data)["status"], "INVALID_INPUT")
+
+    def test_v3_theory_course_cannot_set_multiperiod_block(self):
+        data = copy.deepcopy(self.v3)
+        data["courses"][0]["lab_block_size"] = 2
+        self.assertEqual(generate_timetable(data)["status"], "INVALID_INPUT")
+
+    def test_v3_two_separate_two_period_blocks(self):
+        data = copy.deepcopy(self.v3)
+        data["courses"] = [data["courses"][1]]
+        data["courses"][0]["hours_per_week"] = 4
+        self._clean_reduced_fixture(data)
+        result = generate_timetable(data)
+        self.assertIn(result["status"], ("OPTIMAL", "FEASIBLE"))
+        self.assertEqual(len(result["timetable"]), 4)
+        self.assertEqual(validate_timetable(data, result["timetable"]), [])
+
+    def test_v3_block_occupancy_blocks_other_section_course(self):
+        data = copy.deepcopy(self.v3)
+        data["slots"] = {"days": ["Mon"], "periods": [1, 2]}
+        data["courses"][0]["hours_per_week"] = 1
+        # Lab uses both periods; theory belongs to same section, so impossible.
+        self._clean_reduced_fixture(data)
+        result = generate_timetable(data)
+        self.assertEqual(result["status"], "INFEASIBLE")
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,20 +1,25 @@
 """CP-SAT hard constraints for the scheduling input contract v1.
 
-The model schedules independent one-period sessions. Breaks and faculty NO
-availability are handled before variable creation in solver.py. Consecutive
-lab blocks are not yet implemented.
+A single solver variable may occupy multiple consecutive periods (v3).
+Breaks and faculty NO availability are filtered before variable creation.
 """
 from collections import defaultdict
 from itertools import combinations
 
 
-def add_hard_constraints(model, variables, sessions, courses, faculty, rooms, days, periods, student_courses):
+def add_hard_constraints(model, variables, sessions, courses, faculty, rooms, days, periods,
+                         student_courses, durations=None):
     """Add exact assignment, resource and student/section non-overlap rules.
 
     variables: dict[(session_idx, day_idx, period_idx, room_idx)] -> BoolVar
-    sessions: list of course indices (one per required lecture period)
+    sessions: list of course indices (one per independent session/block)
+    durations: each session's consecutive period count (default: 1)
     student_courses: iterable of sets containing course IDs for each student
     """
+    if durations is None:
+        durations = [1] * len(sessions)
+    if len(durations) != len(sessions):
+        raise ValueError("durations must match the number of sessions")
     by_session = defaultdict(list)
     by_room_slot = defaultdict(list)
     by_faculty_slot = defaultdict(list)
@@ -25,14 +30,18 @@ def add_hard_constraints(model, variables, sessions, courses, faculty, rooms, da
     for (s, d, p, r), var in variables.items():
         course = courses[sessions[s]]
         course_id = course["id"]
-        slot = (d, p)
         by_session[s].append(var)
-        by_room_slot[(r, d, p)].append(var)
-        by_faculty_slot[(course["faculty_id"], d, p)].append(var)
-        by_course_slot[(course_id, d, p)].append(var)
-        by_course_period[(course_id, d, p)].append(var)
-        if course.get("section_id"):
-            by_section_slot[(course["section_id"], d, p)].append(var)
+        # Add the same start decision to every occupied period. That makes
+        # faculty, room, course, section and student clashes impossible even
+        # in the MIDDLE of a lab block.
+        for offset in range(durations[s]):
+            occupied_p = p + offset
+            by_room_slot[(r, d, occupied_p)].append(var)
+            by_faculty_slot[(course["faculty_id"], d, occupied_p)].append(var)
+            by_course_slot[(course_id, d, occupied_p)].append(var)
+            by_course_period[(course_id, d, occupied_p)].append(var)
+            if course.get("section_id"):
+                by_section_slot[(course["section_id"], d, occupied_p)].append(var)
 
     for s in range(len(sessions)):
         model.AddExactlyOne(by_session[s])

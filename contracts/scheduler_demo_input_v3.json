@@ -1,0 +1,105 @@
+{
+  "slots": {
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri"
+    ],
+    "periods": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "breaks": [
+      {
+        "day": "Wed",
+        "period": 3
+      }
+    ]
+  },
+  "faculty": [
+    {
+      "id": "DEMO_F1",
+      "name": "Demo Faculty 1",
+      "preferences": [
+        {
+          "day": "Mon",
+          "period": 1,
+          "level": "NO"
+        },
+        {
+          "day": "Mon",
+          "period": 2,
+          "level": "AVOID"
+        },
+        {
+          "day": "Tue",
+          "period": 2,
+          "level": "PREFER"
+        }
+      ]
+    },
+    {
+      "id": "DEMO_F2",
+      "name": "Demo Faculty 2",
+      "preferences": [
+        {
+          "day": "Fri",
+          "period": 5,
+          "level": "NO"
+        }
+      ]
+    }
+  ],
+  "rooms": [
+    {
+      "id": "DEMO_R1",
+      "capacity": 80,
+      "type": "classroom"
+    },
+    {
+      "id": "DEMO_L1",
+      "capacity": 30,
+      "type": "lab"
+    }
+  ],
+  "courses": [
+    {
+      "id": "DEMO_CSE_A_C1",
+      "name": "Demonstration Course One",
+      "faculty_id": "DEMO_F1",
+      "hours_per_week": 3,
+      "expected_students": 65,
+      "requires_lab": false,
+      "type": "major",
+      "section_id": "I-CS-A",
+      "catalog_code": "DEMO_101"
+    },
+    {
+      "id": "DEMO_CSE_A_C2",
+      "name": "Demonstration Lab Course",
+      "faculty_id": "DEMO_F2",
+      "hours_per_week": 2,
+      "expected_students": 25,
+      "requires_lab": true,
+      "type": "practical",
+      "section_id": "I-CS-A",
+      "catalog_code": "DEMO_102P",
+      "lab_block_size": 2
+    }
+  ],
+  "student_choices": [
+    {
+      "student_id": "ANON_001",
+      "course_ids": [
+        "DEMO_CSE_A_C1",
+        "DEMO_CSE_A_C2"
+      ]
+    }
+  ]
+}
