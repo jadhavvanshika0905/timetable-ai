@@ -77,9 +77,27 @@ def build_solver_input_from_records(*, courses, faculty, rooms, timeslots,
     faculty_by_id = {}
     for item in faculty:
         fid = _id(item.get("id"))
+
         if fid in faculty_by_id:
             raise SchedulerDataError(f"Duplicate faculty ID {fid}.")
-        faculty_by_id[fid] = {"id": fid, "name": item.get("name") or f"Faculty {fid}", "preferences": []}
+
+        limit = item.get("max_hours_per_week")
+
+        if limit is not None and (
+            type(limit) is not int or limit <= 0
+        ):
+            raise SchedulerDataError(
+                f"Faculty {fid} has invalid max_hours_per_week."
+            )
+
+        faculty_by_id[fid] = {
+            "id": fid,
+            "name": item.get("name") or f"Faculty {fid}",
+            "preferences": [],
+        }
+
+        if limit is not None:
+            faculty_by_id[fid]["max_hours_per_week"] = limit
 
     for pref in preferences:
         fid = _id(pref.get("faculty_id"))
@@ -196,7 +214,11 @@ def build_solver_input_from_db(term_id, *, course_ids=None, lab_block_sizes=None
     faculty_ids = {row["faculty_id"] for row in course_rows if row["faculty_id"] is not None}
     return build_solver_input_from_records(
         courses=course_rows,
-        faculty=list(Faculty.objects.filter(pk__in=faculty_ids).values("id", "name")),
+        faculty=list(
+            Faculty.objects.filter(
+                pk__in=faculty_ids
+            ).values("id", "name", "max_hours_per_week")
+        ),
         rooms=list(Room.objects.values("id", "code", "capacity", "room_type")),
         timeslots=list(TimeSlot.objects.values("day", "period", "is_break")),
         enrollments=list(choice_qs.filter(course_id__in=selected_ids).values("student_id", "course_id")),

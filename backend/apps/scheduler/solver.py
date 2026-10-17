@@ -93,6 +93,16 @@ def _validate_input(data):
                              f"Faculty {member['id']} preferences", {"NO", "AVOID", "PREFER"})
         if error:
             return [error]
+    for member in data["faculty"]:
+        limit = member.get("max_hours_per_week")
+
+        if limit is not None and (
+            type(limit) is not int or limit <= 0
+        ):
+            return [
+                f"Faculty {member['id']}: "
+                "max_hours_per_week must be a positive integer."
+            ]
     faculty_ids = {f["id"] for f in data["faculty"]}
     course_ids = {c["id"] for c in data["courses"]}
     for room in data["rooms"]:
@@ -172,10 +182,25 @@ def _precheck(data, candidate_rooms):
         load[course["faculty_id"]] += course["hours_per_week"]
         if course.get("section_id"):
             sections[course["section_id"]] += course["hours_per_week"]
+    faculty_limits = {
+        f["id"]: f.get("max_hours_per_week")
+        for f in data["faculty"]
+    }
     for fid, count in load.items():
+        limit = faculty_limits[fid]
+
+        if limit is not None and count > limit:
+            return [
+                f"Faculty {fid}: {count} periods exceed "
+                f"max_hours_per_week={limit}."
+            ]
+
         allowed = sum(preferences[fid].get(slot) != "NO" for slot in all_slots)
         if count > allowed:
-            return [f"Faculty {fid}: {count} periods required but only {allowed} available."]
+            return [
+                f"Faculty {fid}: {count} periods required "
+                f"but only {allowed} available."
+            ]
     for section, count in sections.items():
         if count > n_slots:
             return [f"Section {section}: {count} periods required but only {n_slots} available."]
