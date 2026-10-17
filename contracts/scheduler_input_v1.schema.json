@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:timetable-ai:scheduler-input:v1",
+  "title": "Timetable AI — Member 1 Scheduler Input v1",
+  "description": "Backward-compatible v1.1 optional breaks and faculty preferences; one-period sessions.",
+  "type": "object",
+  "required": [
+    "slots",
+    "faculty",
+    "rooms",
+    "courses"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "slots": {
+      "type": "object",
+      "required": [
+        "days",
+        "periods"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "periods": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "breaks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "day",
+              "period"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "day": {
+                "type": "string",
+                "minLength": 1
+              },
+              "period": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "description": "Day-period pairs reserved for breaks; optional."
+        }
+      }
+    },
+    "faculty": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "preferences": {
+            "type": "array",
+            "description": "One entry per faculty/slot. NO=unavailable, AVOID/PREFER=soft.",
+            "items": {
+              "type": "object",
+              "required": [
+                "day",
+                "period",
+                "level"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "day": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "period": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "level": {
+                  "enum": [
+                    "NO",
+                    "AVOID",
+                    "PREFER"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "capacity",
+          "type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "type": {
+            "enum": [
+              "classroom",
+              "lab",
+              "seminar"
+            ]
+          }
+        }
+      }
+    },
+    "courses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "faculty_id",
+          "hours_per_week",
+          "expected_students"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "faculty_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hours_per_week": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_students": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requires_lab": {
+            "type": "boolean",
+            "default": false
+          },
+          "type": {
+            "enum": [
+              "major",
+              "minor",
+              "skill",
+              "value_added",
+              "practical",
+              "other"
+            ]
+          },
+          "catalog_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "section_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "student_choices": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": [
+          "student_id",
+          "course_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "student_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "course_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

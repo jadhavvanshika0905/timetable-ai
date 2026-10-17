@@ -1,0 +1,96 @@
+{
+  "dataset_type": "STAGING_INVENTORY_NOT_SCHEDULER_INPUT",
+  "academic_period": "July-December 2026",
+  "source": {
+    "filename": "CLASSROOMS_LAB-SECTIONS.xlsx",
+    "worksheet": "NEW Classroom Allotment_JULY 20",
+    "rows": "6-10"
+  },
+  "program_scope": "First-year CSE classroom allotment (sections A,B,C,D,F); only aggregate counts, no student names or IDs",
+  "sections": [
+    {
+      "section_id": "I-CS-A",
+      "program": "B.TECH.-CSE",
+      "students": 65,
+      "listed_room_id": "MB-312",
+      "listed_room_capacity": 64,
+      "capacity_gap": 1,
+      "capacity_check": "OVER_CAPACITY"
+    },
+    {
+      "section_id": "I-CS-B",
+      "program": "B.TECH.-CSE",
+      "students": 65,
+      "listed_room_id": "MB-313",
+      "listed_room_capacity": 64,
+      "capacity_gap": 1,
+      "capacity_check": "OVER_CAPACITY"
+    },
+    {
+      "section_id": "I-CS-C",
+      "program": "B.TECH.-CSE",
+      "students": 65,
+      "listed_room_id": "MB-314",
+      "listed_room_capacity": 64,
+      "capacity_gap": 1,
+      "capacity_check": "OVER_CAPACITY"
+    },
+    {
+      "section_id": "I-CS-D",
+      "program": "B.TECH.-CSE",
+      "students": 65,
+      "listed_room_id": "MB-315",
+      "listed_room_capacity": 64,
+      "capacity_gap": 1,
+      "capacity_check": "OVER_CAPACITY"
+    },
+    {
+      "section_id": "I-CS-F",
+      "program": "B.TECH.-CSE",
+      "students": 60,
+      "listed_room_id": "MB-303",
+      "listed_room_capacity": 66,
+      "capacity_gap": 0,
+      "capacity_check": "OK"
+    }
+  ],
+  "listed_rooms": [
+    {
+      "id": "MB-303",
+      "capacity": 66,
+      "type": "classroom"
+    },
+    {
+      "id": "MB-312",
+      "capacity": 64,
+      "type": "classroom"
+    },
+    {
+      "id": "MB-313",
+      "capacity": 64,
+      "type": "classroom"
+    },
+    {
+      "id": "MB-314",
+      "capacity": 64,
+      "type": "classroom"
+    },
+    {
+      "id": "MB-315",
+      "capacity": 64,
+      "type": "classroom"
+    }
+  ],
+  "missing_for_scheduler": [
+    "section-to-course-offering mapping",
+    "faculty assignment per course offering",
+    "weekly periods / practical duration per offering",
+    "working days, period timetable, breaks and faculty availability",
+    "individual elective choices or overlap groups"
+  ],
+  "data_quality_notes": [
+    "Listed classroom allotment is not a hard room assignment; rooms below section strength must not be forced by the solver.",
+    "I-CS-E does not appear in this particular July-December classroom-allotment CSE first-year block.",
+    "Lab data was labeled Jan-Jun 2026; revalidate lab availability for July-Dec before using it."
+  ]
+}
