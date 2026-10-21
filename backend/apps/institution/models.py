@@ -1,4 +1,6 @@
 """PART 2 - Institution data: departments, faculty, rooms, courses, students, time slots."""
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -64,11 +66,17 @@ class Course(models.Model):
     credits = models.PositiveSmallIntegerField(default=3)
     hours_per_week = models.PositiveSmallIntegerField(default=3)
     requires_lab = models.BooleanField(default=False)
+    lab_block_size = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)],help_text="Lab ke liye kitne CONSECUTIVE periods ek saath (1 = normal theory class)")
     semester = models.PositiveSmallIntegerField(default=1)
     faculty = models.ForeignKey(Faculty, null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name="courses")
-    expected_students = models.PositiveIntegerField(default=0)  # solver room-capacity check isi se karta hai
+    expected_students = models.PositiveIntegerField(default=0)
 
+    def clean(self):
+        if self.lab_block_size > 1 and not self.requires_lab:
+            raise ValidationError({"lab_block_size": "lab_block_size > 1 sirf requires_lab=True courses ke liye hai."})
+        if self.hours_per_week % self.lab_block_size:
+            raise ValidationError({"lab_block_size": "hours_per_week, lab_block_size se divisible hona chahiye."})
     def __str__(self):
         return f"{self.code} - {self.name}"
 

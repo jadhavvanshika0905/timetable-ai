@@ -1,11 +1,13 @@
-"""Member 1: Django-to-OR-Tools data adapter (v4, read-only).
+"""Member 1: Django-to-OR-Tools data adapter (v5, read-only).
 
 No database writes and no changes to teammates' models. The pure conversion
 function can be unit-tested without Django, PostgreSQL, or a running server.
 
-The current institution schema has no CourseOffering/Section or lab_block_size
-columns. Until Member 2 adds those, callers must pass an explicit offering
-selection when needed and lab sizes using ``lab_block_sizes``.
+Course.lab_block_size now exists in the institution schema, so lab block sizes
+are read from the database automatically. An explicit ``lab_block_sizes``
+argument still overrides the database value. The schema still has no
+CourseOffering/Section table; callers pass an explicit ``course_ids`` selection
+when needed.
 """
 from collections import Counter, defaultdict
 
@@ -207,7 +209,12 @@ def build_solver_input_from_db(term_id, *, course_ids=None, lab_block_sizes=None
     selected_ids = {_id(pk) for pk in selected}
     course_rows = list(Course.objects.filter(pk__in=selected_ids).values(
         "id", "code", "name", "faculty_id", "hours_per_week", "requires_lab",
-        "expected_students", "course_type"))
+        "expected_students", "course_type", "lab_block_size"))
+    # lab_block_size DB column se; explicit lab_block_sizes argument ko priority
+    db_sizes = {_id(row["id"]): row["lab_block_size"]
+                for row in course_rows if row["lab_block_size"] > 1}
+    explicit_sizes = {_id(k): v for k, v in (lab_block_sizes or {}).items()}
+    lab_block_sizes = {**db_sizes, **explicit_sizes}
     found_ids = {_id(row["id"]) for row in course_rows}
     if found_ids != selected_ids:
         raise SchedulerDataError(f"Unknown Course PKs: {sorted(selected_ids - found_ids)}.")
@@ -233,9 +240,17 @@ def generate_timetable_for_term(
     course_ids=None,
     lab_block_sizes=None,
     max_time_seconds=10.0,
-    num_search_workers=1
+    num_search_workers=0,
+    ml_hints=None,
+    optimize=True
 ):
-    """Return existing solver result JSON without writing to the database."""
+    """Return solver result JSON without writing to the database.
+
+    num_search_workers=0 uses every CPU core (fastest). ``ml_hints`` is Member 2's
+    optional prediction dict (see hints.py); ``optimize=False`` returns the first
+    feasible timetable without soft goals. Optional arguments are forwarded only
+    when they differ from the defaults.
+    """
     try:
         data = build_solver_input_from_db(term_id, course_ids=course_ids,
                                           lab_block_sizes=lab_block_sizes)
@@ -243,8 +258,40 @@ def generate_timetable_for_term(
         return {"status": "INVALID_INPUT", "timetable": [],
                 "infeasibility_reasons": [str(exc)]}
     from .solver import generate_timetable
+    extra = {}
+    if ml_hints is not None:
+        extra["ml_hints"] = ml_hints
+    if not optimize:
+        extra["optimize"] = False
     return generate_timetable(
         data,
         max_time_seconds=max_time_seconds,
-        num_search_workers=num_search_workers
+        num_search_workers=num_search_workers,
+        **extra
     )
+
+
+def validate_manual_move_for_term(term_id, timetable, *, course_id, from_day, from_period,
+                                  to_day, to_period, to_room_id=None,
+                                  course_ids=None, lab_block_sizes=None):
+    """Drag-and-drop check for Member 3's API. Read-only; nothing is saved.
+
+    ``timetable`` is the current list of rows (course_id, faculty_id, room_id, day, period).
+    Returns {"ok", "issues", "timetable", "moved"}; save ``timetable`` only if ok is True.
+    """
+    from .editing import move_session
+    data = build_solver_input_from_db(term_id, course_ids=course_ids,
+                                      lab_block_sizes=lab_block_sizes)
+    return move_session(data, timetable, course_id=str(course_id), from_day=from_day,
+                        from_period=from_period, to_day=to_day, to_period=to_period,
+                        to_room_id=None if to_room_id is None else str(to_room_id))
+
+
+def valid_move_targets_for_term(term_id, timetable, *, course_id, from_day, from_period,
+                                course_ids=None, lab_block_sizes=None):
+    """All cells where the class can be dropped (to highlight them in the grid)."""
+    from .editing import valid_move_targets
+    data = build_solver_input_from_db(term_id, course_ids=course_ids,
+                                      lab_block_sizes=lab_block_sizes)
+    return valid_move_targets(data, timetable, course_id=str(course_id),
+                              from_day=from_day, from_period=from_period)
