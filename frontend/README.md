@@ -1,75 +1,27 @@
-# React + TypeScript + Vite
+# Timetable frontend (React + Vite + Tailwind)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Run
+1. Install Node.js LTS (18 or newer) from https://nodejs.org
+2. In this folder:  npm install
+3. Start the backend first (backend folder):  python manage.py runserver
+4. Start the frontend:  npm run dev   -> open http://localhost:5173
 
-Currently, two official plugins are available:
+Backend on another address? Copy .env.example to .env and edit VITE_API_URL, then restart `npm run dev`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Screens
+- /login                 everyone
+- /generate  (Admin)     pick term, time limit, ML on/off, Generate; shows result, metrics, ML hints
+- /timetable (Admin)     full weekly grid, filters (faculty/room/course), by-day view, CSV
+- /users     (Admin)     create Faculty / Student / Admin logins
+- /my  (Faculty/Student) only your own classes, week grid or by-day list, CSV
 
-## React Compiler
+## Tests
+  npm test        (grid helper functions)
+  npm run build   (production build into dist/)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+## Files
+  src/api/client.js     every backend call + token refresh + error messages
+  src/auth.jsx          login state
+  src/lib/grid.js       timetable grid helpers (tested)
+  src/pages/*           the 5 screens
+  src/components/*      layout, weekly grid, small shared pieces
