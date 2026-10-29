@@ -17,3 +17,10 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Local database and migration backups
+timetable_backup.dump
+backend/apps/institution/migrations/*.disabled
+backend/apps/institution/migrations/*.local-backup
+backend/member1_v5_demo.py
+backend/member1_v6_save_test.py
